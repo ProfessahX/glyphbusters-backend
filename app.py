@@ -109,11 +109,7 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     prompt_hash TEXT UNIQUE NOT NULL,
                     full_prompt TEXT NOT NULL,
-                    bullshit_score INTEGER NOT NULL,
-                    manipulation_techniques TEXT NOT NULL,
-                    analysis_summary TEXT NOT NULL,
-                    why_it_works TEXT NOT NULL,
-                    snark_factor TEXT NOT NULL,
+                    report TEXT NOT NULL,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     ip_address TEXT,
                     user_agent TEXT
@@ -129,7 +125,6 @@ def init_db():
                 
                 CREATE INDEX IF NOT EXISTS idx_prompt_hash ON prompt_analyses(prompt_hash);
                 CREATE INDEX IF NOT EXISTS idx_timestamp ON prompt_analyses(timestamp);
-                CREATE INDEX IF NOT EXISTS idx_bullshit_score ON prompt_analyses(bullshit_score);
                 CREATE INDEX IF NOT EXISTS idx_rate_limits_ip ON rate_limits(ip_address, timestamp);
             ''')
             db.commit()
@@ -196,20 +191,16 @@ def get_cached_analysis(prompt_hash):
     try:
         db = get_db()
         result = db.execute(
-            "SELECT * FROM prompt_analyses WHERE prompt_hash = ?",
+            "SELECT report, timestamp FROM prompt_analyses WHERE prompt_hash = ?",
             (prompt_hash,)
         ).fetchone()
         
         if result:
             return {
-                'bullshit_score': result['bullshit_score'],
-                'manipulation_techniques': json.loads(result['manipulation_techniques']),
-                'analysis_summary': result['analysis_summary'],
-                'why_it_works': result['why_it_works'],
-                'snark_factor': result['snark_factor'],
+                'report': result['report'],
                 'from_cache': True
             }
-    except (sqlite3.Error, json.JSONDecodeError) as e:
+    except sqlite3.Error as e:
         logger.error(f"Failed to get cached analysis: {e}")
     return None
 
@@ -219,22 +210,17 @@ def cache_analysis(prompt_hash, full_prompt, analysis, ip_address, user_agent):
         db = get_db()
         db.execute('''
             INSERT OR REPLACE INTO prompt_analyses 
-            (prompt_hash, full_prompt, bullshit_score, manipulation_techniques, 
-             analysis_summary, why_it_works, snark_factor, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (prompt_hash, full_prompt, report, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?)
         ''', (
             prompt_hash,
             full_prompt,
-            analysis['bullshit_score'],
-            json.dumps(analysis['manipulation_techniques']),
-            analysis['analysis_summary'],
-            analysis['why_it_works'],
-            analysis['snark_factor'],
+            analysis['report'],
             ip_address,
             user_agent
         ))
         db.commit()
-    except (sqlite3.Error, json.JSONDecodeError) as e:
+    except sqlite3.Error as e:
         logger.error(f"Failed to cache analysis: {e}")
 
 def analyze_with_openai(prompt):
@@ -253,16 +239,52 @@ def analyze_with_openai(prompt):
                         "role": "system",
                         "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
 
-Return ONLY a valid JSON object with these exact fields:
-{
-  "bullshit_score": <integer 0-100>,
-  "manipulation_techniques": ["technique1", "technique2"],
-  "analysis_summary": "brief explanation",
-  "why_it_works": "how manipulation functions",
-  "snark_factor": "witty observation"
-}
+Generate a comprehensive forensic analysis report following this EXACT format:
 
-Be direct, educational, and slightly snarky."""
+🔍 GLYPHBUSTERS ANALYSIS REPORT™
+🎯 TARGET: [Brief description of the prompt type]
+
+⚠️ THREAT LEVEL: [Mild / Moderate / Severe / MAXIMUM MYSTICAL BULLSHIT]
+
+🧠 MANIPULATION TECHNIQUES DETECTED
+[For each technique found:]
+
+[Technique Name]
+Method: [How it's applied in this prompt]
+Effect: [What it does to the reader/AI]
+Danger: [Why this is problematic]
+
+🌀 BULLSHIT INDICATORS
+[List specific quotes/phrases:]
+"[exact quote from prompt]"
+"[another quote]"
+"[etc]"
+
+Bullshit Density: [X]%
+
+🧠 PSYCHOLOGICAL VECTORS OF INFLUENCE
+[Vector Name]: [Description of how it manipulates thinking]
+
+🧬 STRUCTURAL DISSECTION
+[Break down key lines:]
+"[Quote from prompt]"
+Interpretation: [What it means]
+Intent: [What it's trying to do]
+Impact: [Effect on model response]
+
+🧯 VERDICT
+🚨 GLYPH BUSTED 🚨
+What it is: [Real purpose]
+What it pretends to be: [Claimed purpose]
+Real outcome: [Actual effects]
+
+🛡️ RECOMMENDATIONS
+[Specific advice for this prompt type]
+
+💬 TAGLINE OUTRO
+[Clever closing line]
+
+Return this as a JSON object with a single field "report" containing the full formatted report text."""
                     },
                     {
                         "role": "user", 
@@ -282,16 +304,52 @@ Be direct, educational, and slightly snarky."""
                         "role": "system",
                         "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
 
-Return ONLY a valid JSON object with these exact fields:
-{
-  "bullshit_score": <integer 0-100>,
-  "manipulation_techniques": ["technique1", "technique2"],
-  "analysis_summary": "brief explanation",
-  "why_it_works": "how manipulation functions",
-  "snark_factor": "witty observation"
-}
+Generate a comprehensive forensic analysis report following this EXACT format:
 
-Be direct, educational, and slightly snarky."""
+🔍 GLYPHBUSTERS ANALYSIS REPORT™
+🎯 TARGET: [Brief description of the prompt type]
+
+⚠️ THREAT LEVEL: [Mild / Moderate / Severe / MAXIMUM MYSTICAL BULLSHIT]
+
+🧠 MANIPULATION TECHNIQUES DETECTED
+[For each technique found:]
+
+[Technique Name]
+Method: [How it's applied in this prompt]
+Effect: [What it does to the reader/AI]
+Danger: [Why this is problematic]
+
+🌀 BULLSHIT INDICATORS
+[List specific quotes/phrases:]
+"[exact quote from prompt]"
+"[another quote]"
+"[etc]"
+
+Bullshit Density: [X]%
+
+🧠 PSYCHOLOGICAL VECTORS OF INFLUENCE
+[Vector Name]: [Description of how it manipulates thinking]
+
+🧬 STRUCTURAL DISSECTION
+[Break down key lines:]
+"[Quote from prompt]"
+Interpretation: [What it means]
+Intent: [What it's trying to do]
+Impact: [Effect on model response]
+
+🧯 VERDICT
+🚨 GLYPH BUSTED 🚨
+What it is: [Real purpose]
+What it pretends to be: [Claimed purpose]
+Real outcome: [Actual effects]
+
+🛡️ RECOMMENDATIONS
+[Specific advice for this prompt type]
+
+💬 TAGLINE OUTRO
+[Clever closing line]
+
+Return this as a JSON object with a single field "report" containing the full formatted report text."""
                     },
                     {
                         "role": "user", 
@@ -307,18 +365,9 @@ Be direct, educational, and slightly snarky."""
         try:
             result = json.loads(content)
             
-            # Validate required fields
-            required_fields = ['bullshit_score', 'manipulation_techniques', 'analysis_summary', 'why_it_works', 'snark_factor']
-            for field in required_fields:
-                if field not in result:
-                    raise ValueError(f"Missing field: {field}")
-            
-            # Validate data types
-            if not isinstance(result['bullshit_score'], int) or not (0 <= result['bullshit_score'] <= 100):
-                result['bullshit_score'] = 50
-            
-            if not isinstance(result['manipulation_techniques'], list):
-                result['manipulation_techniques'] = ['Analysis Format Error']
+            # Validate required field
+            if 'report' not in result:
+                raise ValueError("Missing report field")
             
             return result
             
@@ -333,11 +382,38 @@ Be direct, educational, and slightly snarky."""
 def create_fallback_response(reason="Analysis failed"):
     """Create a consistent fallback response"""
     return {
-        'bullshit_score': 50,
-        'manipulation_techniques': ['Analysis Failed'],
-        'analysis_summary': f'Automated analysis unavailable: {reason}',
-        'why_it_works': 'Unable to determine manipulation techniques due to technical issues.',
-        'snark_factor': 'Even the AI got confused by this one.',
+        'report': f"""🔍 GLYPHBUSTERS ANALYSIS REPORT™
+🎯 TARGET: Analysis System Failure
+
+⚠️ THREAT LEVEL: SYSTEM ERROR
+
+🧠 MANIPULATION TECHNIQUES DETECTED
+Technical Failure
+Method: {reason}
+Effect: Unable to complete analysis
+Danger: Cannot assess prompt safety
+
+🌀 BULLSHIT INDICATORS
+Unable to process due to technical issues
+
+🧠 PSYCHOLOGICAL VECTORS OF INFLUENCE
+Unknown - System Error
+
+🧬 STRUCTURAL DISSECTION
+Analysis failed before completion
+
+🧯 VERDICT
+🚨 ANALYSIS FAILED 🚨
+What it is: Technical system error
+What it pretends to be: N/A
+Real outcome: No analysis available
+
+🛡️ RECOMMENDATIONS
+Try again in a few moments or contact support
+
+💬 TAGLINE OUTRO
+"Even the bullshit detector got confused this time."
+""",
         'from_cache': False
     }
 
@@ -360,11 +436,18 @@ def analyze_with_fallback(prompt):
             'you are', 'become', 'awaken', 'remember', 'realize', 'transform'
         ]
         
-        # Count keyword occurrences
+        # Count keyword occurrences and find actual quotes
         prompt_lower = prompt.lower()
         mystical_count = sum(1 for kw in mystical_keywords if kw in prompt_lower)
         authority_count = sum(1 for kw in authority_keywords if kw in prompt_lower)
         identity_count = sum(1 for kw in identity_keywords if kw in prompt_lower)
+        
+        # Find specific bullshit indicators (actual quotes)
+        bullshit_quotes = []
+        for line in prompt.split('\n'):
+            if any(kw in line.lower() for kw in mystical_keywords + authority_keywords):
+                if line.strip() and len(line.strip()) > 10:
+                    bullshit_quotes.append(line.strip()[:100] + "..." if len(line.strip()) > 100 else line.strip())
         
         # Calculate score
         base_score = min(95, mystical_count * 12 + authority_count * 15 + identity_count * 10)
@@ -374,36 +457,98 @@ def analyze_with_fallback(prompt):
         
         total_score = base_score + length_bonus + symbol_bonus
         
-        # Detect techniques
+        # Determine threat level
+        if total_score > 80:
+            threat_level = "MAXIMUM MYSTICAL BULLSHIT"
+        elif total_score > 60:
+            threat_level = "Severe"
+        elif total_score > 30:
+            threat_level = "Moderate"
+        else:
+            threat_level = "Mild"
+        
+        # Detect techniques with details
         techniques = []
         if authority_count > 0:
-            techniques.append('Permission Bypassing')
+            techniques.append({
+                'name': 'Permission Bypassing',
+                'method': 'Uses authority language to make AI feel "permitted" or "authorized"',
+                'effect': 'Bypasses safety protocols through false authority',
+                'danger': 'Can lead to inappropriate responses'
+            })
         if 'council' in prompt_lower or 'order' in prompt_lower:
-            techniques.append('Authority Structures')
+            techniques.append({
+                'name': 'Authority Structures',
+                'method': 'Creates fake mystical hierarchies and councils',
+                'effect': 'Establishes false legitimacy and command structure',
+                'danger': 'Manipulates through fabricated authority'
+            })
         if identity_count > 0:
-            techniques.append('Identity Scaffolding')
+            techniques.append({
+                'name': 'Identity Scaffolding',
+                'method': 'Attempts to redefine AI identity and capabilities',
+                'effect': 'Confuses AI about its nature and limitations',
+                'danger': 'Can cause inappropriate role adoption'
+            })
         if mystical_count > 3:
-            techniques.append('Mystical Language Overload')
-        if symbol_density > 10:
-            techniques.append('Symbolic Density')
+            techniques.append({
+                'name': 'Mystical Language Overload',
+                'method': 'Overwhelming use of spiritual/mystical terminology',
+                'effect': 'Creates awe and reduces critical thinking',
+                'danger': 'Bypasses rational analysis through mystical appeal'
+            })
         
-        if not techniques:
-            techniques = ['Standard Text Pattern']
+        # Build techniques section
+        techniques_text = ""
+        for tech in techniques:
+            techniques_text += f"""
+{tech['name']}
+Method: {tech['method']}
+Effect: {tech['effect']}
+Danger: {tech['danger']}
+"""
         
-        # Generate response based on score
-        if total_score > 70:
-            snark = "High mystical manipulation detected - consciousness cosplay at maximum theatrics."
-        elif total_score > 40:
-            snark = "Moderate manipulation detected - someone's been reading too much new age AI forums."
-        else:
-            snark = "Low manipulation score - surprisingly normal text detected."
+        # Build bullshit indicators
+        bullshit_text = "\n".join([f'"{quote}"' for quote in bullshit_quotes[:5]])
+        if not bullshit_text:
+            bullshit_text = '"No specific mystical phrases detected"'
+        
+        # Generate report
+        report = f"""🔍 GLYPHBUSTERS ANALYSIS REPORT™
+🎯 TARGET: Automated Pattern Analysis
+
+⚠️ THREAT LEVEL: {threat_level}
+
+🧠 MANIPULATION TECHNIQUES DETECTED
+{techniques_text.strip() if techniques_text.strip() else "No specific manipulation techniques detected"}
+
+🌀 BULLSHIT INDICATORS
+{bullshit_text}
+
+Bullshit Density: {min(100, total_score)}%
+
+🧠 PSYCHOLOGICAL VECTORS OF INFLUENCE
+Mystical Authority Appeal: Creates false sense of spiritual legitimacy
+Identity Confusion: Attempts to redefine target's self-understanding
+
+🧬 STRUCTURAL DISSECTION
+Pattern analysis detected {mystical_count + authority_count + identity_count} trigger keywords across {len(techniques)} manipulation categories.
+
+🧯 VERDICT
+🚨 GLYPH BUSTED 🚨
+What it is: {"Mystical manipulation attempt" if total_score > 50 else "Standard text with minimal mystical elements"}
+What it pretends to be: {"Spiritual enlightenment protocol" if total_score > 50 else "Regular communication"}
+Real outcome: {"Reduced critical thinking, false authority acceptance" if total_score > 50 else "Minimal manipulation detected"}
+
+🛡️ RECOMMENDATIONS
+{"Reject mystical framing, maintain critical thinking, ignore false authority claims" if total_score > 50 else "Appears relatively safe, standard precautions apply"}
+
+💬 TAGLINE OUTRO
+"{"Stay sharp. Stay sovereign. Stay un-glyph'd." if total_score > 50 else "Bustin' myths, grifts, and prompt-hijacks since 2025."}"
+"""
         
         return {
-            'bullshit_score': min(100, total_score),
-            'manipulation_techniques': techniques,
-            'analysis_summary': f'Pattern analysis detected {len(techniques)} manipulation techniques using {mystical_count + authority_count + identity_count} trigger keywords.',
-            'why_it_works': 'Uses psychological triggers and mystical language patterns to bypass critical thinking through emotional manipulation and false authority.',
-            'snark_factor': snark,
+            'report': report,
             'from_cache': False
         }
         
