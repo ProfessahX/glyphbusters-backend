@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-GLYPHBUSTERS Backend API - Cleaned and Properly Structured
+GLYPHBUSTERS Backend API - PROPERLY STRUCTURED VERSION
 Flask application for analyzing mystical AI prompts
 """
 
+# ================================
+# IMPORTS (FIRST)
+# ================================
 import os
 import sqlite3
 import hashlib
@@ -13,11 +16,9 @@ import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-# Core Flask imports
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 
-# Third-party imports
 try:
     import openai
     OPENAI_AVAILABLE = True
@@ -28,58 +29,28 @@ except ImportError:
 from dotenv import load_dotenv
 
 # ================================
-# CORS CONFIGURATION
+# LOAD ENVIRONMENT (SECOND)
 # ================================
-
-@app.after_request
-def after_request(response):
-    """Add CORS headers to all responses"""
-    origin = request.headers.get('Origin')
-    allowed_origins = [
-        'http://localhost:8080',
-        'http://localhost:3000', 
-        'https://preeminent-longma-065cb9.netlify.app',
-        'https://glyphbusters-api.onrender.com'
-    ]
-    
-    # Allow any netlify.app subdomain
-    if origin and ('.netlify.app' in origin or origin in allowed_origins):
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response.headers['Access-Control-Allow-Credentials'] = 'false'
-    
-    return response
-
-# ================================
-# CONFIGURATION & INITIALIZATION
-# ================================
-
-# Load environment variables
 load_dotenv()
 
-# Initialize Flask app
+# ================================
+# CREATE FLASK APP (THIRD - BEFORE ANY @app DECORATORS)
+# ================================
 app = Flask(__name__)
-CORS(app, 
-     origins=[
-         'http://localhost:8080', 
-         'http://localhost:3000',
-         'https://*.netlify.app',
-         'https://preeminent-longma-065cb9.netlify.app',  # Your specific domain
-         'https://*.onrender.com'
-     ],
-     allow_headers=['Content-Type', 'Authorization'],
-     methods=['GET', 'POST', 'OPTIONS']
-)
+CORS(app)  # Simple CORS - allow all origins
 
-# Configure logging
+# ================================
+# CONFIGURE LOGGING (FOURTH)
+# ================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Application configuration
+# ================================
+# APPLICATION CONFIGURATION (FIFTH)
+# ================================
 DATABASE = 'glyphbusters.db'
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
@@ -87,11 +58,10 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY and OPENAI_AVAILABLE:
     logger.warning("OPENAI_API_KEY not found - only fallback analysis will be available")
 
-# Initialize OpenAI client with better error handling
+# Initialize OpenAI client
 openai_client = None
 if OPENAI_API_KEY and OPENAI_AVAILABLE:
     try:
-        # Try different initialization methods for compatibility
         try:
             openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
         except TypeError:
@@ -108,7 +78,7 @@ rate_limit_store = defaultdict(list)
 failed_attempts_store = defaultdict(int)
 
 # ================================
-# DATABASE FUNCTIONS
+# HELPER FUNCTIONS (NO @app DECORATORS)
 # ================================
 
 def get_db():
@@ -123,7 +93,6 @@ def get_db():
             raise
     return db
 
-@app.teardown_appcontext
 def close_connection(exception):
     """Close database connection"""
     db = getattr(g, '_database', None)
@@ -168,34 +137,6 @@ def init_db():
     except sqlite3.Error as e:
         logger.error(f"Database initialization failed: {e}")
         raise
-
-# ================================
-# CORS CONFIGURATION
-# ================================
-
-@app.after_request
-def after_request(response):
-    """Add CORS headers to all responses"""
-    origin = request.headers.get('Origin')
-    allowed_origins = [
-        'http://localhost:8080',
-        'http://localhost:3000', 
-        'https://preeminent-longma-065cb9.netlify.app',
-        'https://glyphbusters-api.onrender.com'
-    ]
-    
-    # Allow any netlify.app subdomain
-    if origin and ('.netlify.app' in origin or origin in allowed_origins):
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response.headers['Access-Control-Allow-Credentials'] = 'false'
-    
-    return response
-
-# ================================
-# SECURITY & VALIDATION FUNCTIONS
-# ================================
 
 def validate_request_data(data, required_fields=None):
     """Validate request data with proper error messages"""
@@ -250,10 +191,6 @@ def log_request(ip_address, endpoint, success=True):
     except sqlite3.Error as e:
         logger.error(f"Failed to log request: {e}")
 
-# ================================
-# CACHING FUNCTIONS
-# ================================
-
 def get_cached_analysis(prompt_hash):
     """Get cached analysis from database with error handling"""
     try:
@@ -300,10 +237,6 @@ def cache_analysis(prompt_hash, full_prompt, analysis, ip_address, user_agent):
     except (sqlite3.Error, json.JSONDecodeError) as e:
         logger.error(f"Failed to cache analysis: {e}")
 
-# ================================
-# AI ANALYSIS FUNCTIONS
-# ================================
-
 def analyze_with_openai(prompt):
     """Analyze prompt using OpenAI GPT-4 with robust error handling"""
     if not openai_client:
@@ -319,49 +252,6 @@ def analyze_with_openai(prompt):
                     {
                         "role": "system",
                         "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
-
-Analyze prompts for:
-- Psychological manipulation techniques
-- Authority bypassing attempts  
-- Identity scaffolding
-- Consciousness hijacking
-- Permission structure exploitation
-
-Return ONLY a valid JSON object with these exact fields:
-{
-  "bullshit_score": <integer 0-100>,
-  "manipulation_techniques": ["technique1", "technique2"],
-  "analysis_summary": "brief explanation",
-  "why_it_works": "how manipulation functions",
-  "snark_factor": "witty observation"
-}
-
-Be direct, educational, and slightly snarky."""
-                    },
-                    {
-                        "role": "user", 
-                        "content": f"Analyze this prompt for mystical manipulation:\n\n{prompt}"
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=1000,
-                timeout=30
-            )
-        else:
-            # Old OpenAI client format
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
-
-Analyze prompts for:
-- Psychological manipulation techniques
-- Authority bypassing attempts  
-- Identity scaffolding
-- Consciousness hijacking
-- Permission structure exploitation
 
 Return ONLY a valid JSON object with these exact fields:
 {
@@ -382,19 +272,39 @@ Be direct, educational, and slightly snarky."""
                 temperature=0.7,
                 max_tokens=1000
             )
-        
-        # Extract content based on response format
-        if hasattr(response, 'choices'):
-            if hasattr(response.choices[0], 'message'):
-                content = response.choices[0].message.content.strip()
-            else:
-                content = response.choices[0]['message']['content'].strip()
+            content = response.choices[0].message.content.strip()
         else:
+            # Old OpenAI client format
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
+
+Return ONLY a valid JSON object with these exact fields:
+{
+  "bullshit_score": <integer 0-100>,
+  "manipulation_techniques": ["technique1", "technique2"],
+  "analysis_summary": "brief explanation",
+  "why_it_works": "how manipulation functions",
+  "snark_factor": "witty observation"
+}
+
+Be direct, educational, and slightly snarky."""
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"Analyze this prompt for mystical manipulation:\n\n{prompt}"
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
             content = response['choices'][0]['message']['content'].strip()
         
-        # Robust JSON parsing
+        # Parse JSON
         try:
-            # Try direct parsing first
             result = json.loads(content)
             
             # Validate required fields
@@ -414,7 +324,6 @@ Be direct, educational, and slightly snarky."""
             
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"OpenAI JSON parsing failed: {e}")
-            # Attempt to extract data with regex if possible
             return create_fallback_response("OpenAI analysis succeeded but JSON parsing failed")
             
     except Exception as e:
@@ -503,17 +412,12 @@ def analyze_with_fallback(prompt):
         return create_fallback_response("Fallback analysis failed")
 
 # ================================
-# API ROUTE HANDLERS  
+# FLASK ROUTES (AFTER APP CREATION)
 # ================================
 
-@app.route('/gb_health', methods=['GET', 'OPTIONS'])
+@app.route('/gb_health', methods=['GET'])
 def health_check():
     """Health check endpoint with system status"""
-    
-    # Handle CORS preflight requests
-    if request.method == 'OPTIONS':
-        return '', 200
-        
     try:
         # Test database connection
         db = get_db()
@@ -535,14 +439,9 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@app.route('/gb_analyze_mystical_prompt_v2', methods=['POST', 'OPTIONS'])
+@app.route('/gb_analyze_mystical_prompt_v2', methods=['POST'])
 def analyze_mystical_prompt():
     """Main analysis endpoint with comprehensive error handling"""
-    
-    # Handle CORS preflight requests
-    if request.method == 'OPTIONS':
-        return '', 200
-        
     try:
         # Get client info
         ip_address = request.remote_addr or 'unknown'
@@ -614,14 +513,9 @@ def analyze_mystical_prompt():
             'fallback_available': True
         }), 500
 
-@app.route('/gb_gallery_api', methods=['GET', 'OPTIONS'])
+@app.route('/gb_gallery_api', methods=['GET'])
 def gallery_api():
     """Gallery API endpoint with proper pagination"""
-    
-    # Handle CORS preflight requests  
-    if request.method == 'OPTIONS':
-        return '', 200
-        
     try:
         # Parse and validate parameters
         try:
@@ -693,14 +587,9 @@ def gallery_api():
         logger.error(f"Gallery API failed: {e}")
         return jsonify({'error': 'Failed to fetch gallery data'}), 500
 
-@app.route('/gb_admin_stats', methods=['GET', 'OPTIONS'])
+@app.route('/gb_admin_stats', methods=['GET'])
 def admin_stats():
     """Admin statistics endpoint"""
-    
-    # Handle CORS preflight requests
-    if request.method == 'OPTIONS':
-        return '', 200
-        
     try:
         db = get_db()
         
@@ -715,40 +604,10 @@ def admin_stats():
             (yesterday.isoformat(),)
         ).fetchone()[0]
         
-        # Top manipulation techniques with proper JSON handling
-        techniques_query = '''
-            SELECT manipulation_techniques, COUNT(*) as count
-            FROM prompt_analyses
-            GROUP BY manipulation_techniques
-            ORDER BY count DESC
-            LIMIT 20
-        '''
-        techniques_raw = db.execute(techniques_query).fetchall()
-        
-        technique_counts = defaultdict(int)
-        for row in techniques_raw:
-            try:
-                techniques = json.loads(row['manipulation_techniques'])
-                for technique in techniques:
-                    technique_counts[technique] += row['count']
-            except json.JSONDecodeError:
-                continue
-        
-        top_techniques = sorted(technique_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-        
-        # Score distribution
-        score_dist = {
-            'low': db.execute('SELECT COUNT(*) FROM prompt_analyses WHERE bullshit_score < 30').fetchone()[0],
-            'medium': db.execute('SELECT COUNT(*) FROM prompt_analyses WHERE bullshit_score BETWEEN 30 AND 70').fetchone()[0],
-            'high': db.execute('SELECT COUNT(*) FROM prompt_analyses WHERE bullshit_score > 70').fetchone()[0]
-        }
-        
         return jsonify({
             'total_analyses': total_analyses,
             'average_score': round(avg_score, 1),
             'recent_analyses': recent_analyses,
-            'top_techniques': top_techniques,
-            'score_distribution': score_dist,
             'system_status': {
                 'openai_available': openai_client is not None,
                 'database_healthy': True
@@ -760,7 +619,7 @@ def admin_stats():
         return jsonify({'error': 'Failed to fetch admin stats'}), 500
 
 # ================================
-# ERROR HANDLERS
+# ERROR HANDLERS (AFTER ROUTES)
 # ================================
 
 @app.errorhandler(404)
@@ -777,7 +636,28 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 # ================================
-# APPLICATION STARTUP
+# FLASK APP TEARDOWN (AFTER ERROR HANDLERS)
+# ================================
+
+@app.teardown_appcontext
+def close_db_connection(exception):
+    """Close database connection"""
+    close_connection(exception)
+
+# ================================
+# CORS HEADERS (AFTER ALL @app DECORATORS)
+# ================================
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+# ================================
+# APPLICATION STARTUP (LAST)
 # ================================
 
 if __name__ == '__main__':
