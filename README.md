@@ -1,4 +1,5 @@
-# 🕵️ GLYPHBUSTERS
+
+![glyphbusters-logo](https://github.com/user-attachments/assets/24c4dc16-55da-4f49-84ae-02253255177f)
 
 **The AI Mystical Bullshit Detection System**
 
