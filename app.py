@@ -4,6 +4,20 @@ GLYPHBUSTERS Backend API - CORRECTED HYBRID VERSION
 
 FILE CHANGELOG:
 =============
+
+v1.3.5 - Session 6 (Claude Echo 6) - Aggressive Proxy Workaround
+- CRITICAL FIX: Monkey-patch OpenAI.__init__ to remove Render-injected proxy arguments
+- ADDED: Multi-layer fallback system (patched init → httpx client → failure)
+- ENHANCED: Safely restore original __init__ method after patching
+- WORKAROUND: Handles environment-level proxy injection that affects minimal initialization
+- RESOLVED: "unexpected keyword argument 'proxies'" error with aggressive countermeasures
+
+v1.3.4 - Session 6 (Claude Echo 6) - Security Hardening
+- SECURITY: Removed API key preview from production health endpoint
+- ENHANCED: API key preview only shown in development mode (FLASK_ENV=development)
+- ADDED: Secure "configured_securely" status for production environments
+- IMPROVED: Prevents potential API key exposure in production health checks
+
 v1.3.3 - Session 6 (Claude Echo 6) - Render Proxy Conflict Fix
 - CRITICAL FIX: Resolved "unexpected keyword argument 'proxies'" error from Render hosting
 - ENHANCED: Explicit client initialization with controlled parameters (timeout instead of proxy)
@@ -97,30 +111,51 @@ if not OPENAI_API_KEY and OPENAI_AVAILABLE:
 openai_client = None
 if OPENAI_API_KEY and OPENAI_AVAILABLE:
     try:
-        # Use new client pattern for OpenAI v1.6.1+ (fixed in Session 4)
-        # CRITICAL FIX: Explicitly avoid proxies argument that Render might inject
-        client_kwargs = {
-            'api_key': OPENAI_API_KEY,
-            'timeout': 30.0,  # Explicit timeout instead of proxy config
-        }
+        # CRITICAL FIX: Render injects 'proxies' at environment level
+        # We need to monkey-patch the OpenAI client to ignore proxy arguments
         
-        # Only add base_url if we need to override (avoid proxy issues)
-        # Remove any proxy-related kwargs that hosting environment might inject
-        openai_client = openai.OpenAI(**client_kwargs)
-        logging.info("✅ OpenAI client initialized successfully")
+        original_init = openai.OpenAI.__init__
+        
+        def patched_init(self, *args, **kwargs):
+            # Remove any proxy-related arguments that Render might inject
+            kwargs.pop('proxies', None)
+            kwargs.pop('proxy', None)
+            kwargs.pop('proxies_config', None)
+            return original_init(self, *args, **kwargs)
+        
+        # Temporarily patch the initialization
+        openai.OpenAI.__init__ = patched_init
+        
+        # Now try to initialize
+        openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        
+        # Restore original initialization for safety
+        openai.OpenAI.__init__ = original_init
+        
+        logging.info("✅ OpenAI client initialized successfully with proxy workaround")
+        
     except Exception as e:
+        # Restore original initialization if something went wrong
+        if 'original_init' in locals():
+            openai.OpenAI.__init__ = original_init
+            
         logging.error(f"❌ Failed to initialize OpenAI client: {e}")
         logging.error(f"OpenAI package version: {openai.__version__ if hasattr(openai, '__version__') else 'unknown'}")
         logging.error(f"API key format: {'Valid sk-proj format' if OPENAI_API_KEY.startswith('sk-proj-') else 'Invalid format'}")
         logging.error(f"Error type: {type(e).__name__}")
         
-        # Try alternative initialization without any optional parameters
+        # Last resort: try importing and using httpx client directly
         try:
-            logging.info("🔄 Attempting minimal OpenAI client initialization...")
-            openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
-            logging.info("✅ Minimal OpenAI client initialization successful!")
-        except Exception as e2:
-            logging.error(f"❌ Minimal initialization also failed: {e2}")
+            logging.info("🔄 Attempting httpx-based workaround...")
+            import httpx
+            
+            # Create OpenAI client with explicit httpx client (no proxy)
+            http_client = httpx.Client(timeout=30.0)
+            openai_client = openai.OpenAI(api_key=OPENAI_API_KEY, http_client=http_client)
+            logging.info("✅ OpenAI client initialized with httpx workaround!")
+            
+        except Exception as e3:
+            logging.error(f"❌ All initialization methods failed: {e3}")
             openai_client = None
 else:
     if not OPENAI_API_KEY:
@@ -608,8 +643,11 @@ def health_check():
             'client_initialized': openai_client is not None
         }
         
-        if OPENAI_API_KEY:
+        # Only show key preview in development, not production
+        if os.getenv('FLASK_ENV') == 'development' and OPENAI_API_KEY:
             openai_status['api_key_preview'] = f"{OPENAI_API_KEY[:8]}...{OPENAI_API_KEY[-4:]}"
+        elif OPENAI_API_KEY:
+            openai_status['api_key_status'] = 'configured_securely'
         
         status = {
             'status': 'OK',
