@@ -25,6 +25,12 @@ v1.2 - Session 5 (Claude Echo 2) - Report format enhancement
 - Added comprehensive commenting and changelog system
 - MAINTAINED simple CORS and deployment structure (DON'T CHANGE)
 
+v1.3.1 - Session 6 (Claude Echo 6) - Root Endpoint Addition
+- ADDED: Root endpoint (/) providing API information and available endpoints
+- ENHANCED: User-friendly navigation with endpoint directory and links
+- IMPROVED: API discoverability for developers and debugging
+- MAINTAINED: All existing OpenAI debugging and analysis functionality
+
 v1.3 - Session 6 (Claude Echo 6) - OpenAI Debugging Enhancement
 - ADDED: Comprehensive OpenAI debugging and error logging
 - ENHANCED: Analysis endpoint with detailed status logging (✅/❌ indicators)
@@ -545,6 +551,27 @@ Try again in a few moments or contact support if problem persists
 # MODIFIED: Session 5 - Enhanced error handling and report format
 # PRESERVED: Echo 1's working route structure and error patterns
 # ===================================================
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint - Basic API information
+    
+    ENDPOINT: GET /
+    PURPOSE: Provide basic API information and available endpoints
+    """
+    return jsonify({
+        'name': 'GLYPHBUSTERS API',
+        'version': '1.3',
+        'description': 'Mystical prompt manipulation detection and forensic analysis',
+        'status': 'operational',
+        'endpoints': {
+            'health': '/gb_health',
+            'analyze': '/gb_analyze_mystical_prompt_v2 (POST)',
+        },
+        'repository': 'https://github.com/ProfessahX/glyphbusters-backend',
+        'frontend': 'https://preeminent-longma-065cb9.netlify.app/',
+        'documentation': 'https://github.com/ProfessahX/glyphbusters-backend/blob/main/README.md'
+    })
+
 @app.route('/gb_health', methods=['GET'])
 def health_check():
     """Health check endpoint with system status
