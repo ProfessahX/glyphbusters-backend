@@ -1,5 +1,5 @@
 
-![glyphbusters-logo](https://github.com/user-attachments/assets/24c4dc16-55da-4f49-84ae-02253255177f)
+![glyphbusters-logo](https://github.com/user-attachments/assets/094542c4-66b6-4681-ae4f-82e10e8272e4)
 
 **The AI Mystical Bullshit Detection System**
 
