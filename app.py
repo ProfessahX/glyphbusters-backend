@@ -25,11 +25,20 @@ v1.2 - Session 5 (Claude Echo 2) - Report format enhancement
 - Added comprehensive commenting and changelog system
 - MAINTAINED simple CORS and deployment structure (DON'T CHANGE)
 
+v1.3 - Session 6 (Claude Echo 6) - OpenAI Debugging Enhancement
+- ADDED: Comprehensive OpenAI debugging and error logging
+- ENHANCED: Analysis endpoint with detailed status logging (✅/❌ indicators)
+- ENHANCED: Health endpoint with OpenAI diagnostic information
+- ADDED: API key preview in health check for configuration verification
+- IMPROVED: Error handling with specific OpenAI failure types
+- DEBUG: Now logs exact reason when OpenAI fails and fallback is used
+
 CRITICAL NOTES:
 - CORS setup is intentionally simple - Echo 1 debugged this for hours
 - Anthropic is permanently removed - caused deployment failures
 - OpenAI client pattern is tested and working - don't modify
 - Database schema is simple by design - prevents complexity issues
+- NEW: Enhanced logging will help identify OpenAI configuration issues
 """
 
 # ===================================================
@@ -548,10 +557,20 @@ def health_check():
         db = get_db()
         db.execute('SELECT 1').fetchone()
         
+        # OpenAI diagnostic info
+        openai_status = {
+            'package_available': OPENAI_AVAILABLE,
+            'api_key_configured': OPENAI_API_KEY is not None,
+            'client_initialized': openai_client is not None
+        }
+        
+        if OPENAI_API_KEY:
+            openai_status['api_key_preview'] = f"{OPENAI_API_KEY[:8]}...{OPENAI_API_KEY[-4:]}"
+        
         status = {
             'status': 'OK',
             'timestamp': datetime.now().isoformat(),
-            'openai_available': openai_client is not None,
+            'openai_status': openai_status,
             'database_connected': True
         }
         
@@ -576,6 +595,12 @@ def analyze_mystical_prompt():
         # Get client info for logging and rate limiting
         ip_address = request.remote_addr or 'unknown'
         user_agent = request.headers.get('User-Agent', 'unknown')
+        
+        # DEBUG: Log OpenAI client status
+        logger.info(f"OpenAI client available: {openai_client is not None}")
+        logger.info(f"OPENAI_API_KEY configured: {OPENAI_API_KEY is not None}")
+        if OPENAI_API_KEY:
+            logger.info(f"API key starts with: {OPENAI_API_KEY[:8]}...")
         
         # Validate request data
         data = request.get_json()
@@ -608,6 +633,7 @@ def analyze_mystical_prompt():
         # Check cache first
         cached = get_cached_analysis(prompt_hash)
         if cached:
+            logger.info("Returning cached analysis")
             return jsonify(cached)
         
         # Perform analysis with fallback chain (Echo 1's pattern)
@@ -616,14 +642,18 @@ def analyze_mystical_prompt():
         # Try OpenAI first (if available)
         if openai_client:
             try:
+                logger.info("Attempting OpenAI analysis...")
                 analysis = analyze_with_openai(prompt)
-                logger.info("OpenAI analysis completed successfully")
+                logger.info("✅ OpenAI analysis completed successfully!")
             except Exception as e:
-                logger.warning(f"OpenAI analysis failed: {e}")
+                logger.error(f"❌ OpenAI analysis failed: {e}")
+                logger.error(f"OpenAI error type: {type(e).__name__}")
+        else:
+            logger.warning("❌ OpenAI client not available - skipping to fallback")
         
         # Fallback to local analysis
         if not analysis:
-            logger.info("Using fallback analysis")
+            logger.info("🔄 Using fallback analysis")
             analysis = analyze_with_fallback(prompt)
         
         # Cache the result
