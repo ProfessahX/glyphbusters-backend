@@ -28,6 +28,30 @@ except ImportError:
 from dotenv import load_dotenv
 
 # ================================
+# CORS CONFIGURATION
+# ================================
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    origin = request.headers.get('Origin')
+    allowed_origins = [
+        'http://localhost:8080',
+        'http://localhost:3000', 
+        'https://preeminent-longma-065cb9.netlify.app',
+        'https://glyphbusters-api.onrender.com'
+    ]
+    
+    # Allow any netlify.app subdomain
+    if origin and ('.netlify.app' in origin or origin in allowed_origins):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'false'
+    
+    return response
+
+# ================================
 # CONFIGURATION & INITIALIZATION
 # ================================
 
@@ -36,12 +60,17 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, origins=[
-    'http://localhost:8080', 
-    'http://localhost:3000',
-    'https://*.netlify.app',
-    'https://*.onrender.com'
-])
+CORS(app, 
+     origins=[
+         'http://localhost:8080', 
+         'http://localhost:3000',
+         'https://*.netlify.app',
+         'https://preeminent-longma-065cb9.netlify.app',  # Your specific domain
+         'https://*.onrender.com'
+     ],
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS']
+)
 
 # Configure logging
 logging.basicConfig(
@@ -139,6 +168,30 @@ def init_db():
     except sqlite3.Error as e:
         logger.error(f"Database initialization failed: {e}")
         raise
+
+# ================================
+# CORS CONFIGURATION
+# ================================
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    origin = request.headers.get('Origin')
+    allowed_origins = [
+        'http://localhost:8080',
+        'http://localhost:3000', 
+        'https://preeminent-longma-065cb9.netlify.app',
+        'https://glyphbusters-api.onrender.com'
+    ]
+    
+    # Allow any netlify.app subdomain
+    if origin and ('.netlify.app' in origin or origin in allowed_origins):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'false'
+    
+    return response
 
 # ================================
 # SECURITY & VALIDATION FUNCTIONS
@@ -453,9 +506,14 @@ def analyze_with_fallback(prompt):
 # API ROUTE HANDLERS  
 # ================================
 
-@app.route('/gb_health', methods=['GET'])
+@app.route('/gb_health', methods=['GET', 'OPTIONS'])
 def health_check():
     """Health check endpoint with system status"""
+    
+    # Handle CORS preflight requests
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         # Test database connection
         db = get_db()
@@ -477,9 +535,14 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@app.route('/gb_analyze_mystical_prompt_v2', methods=['POST'])
+@app.route('/gb_analyze_mystical_prompt_v2', methods=['POST', 'OPTIONS'])
 def analyze_mystical_prompt():
     """Main analysis endpoint with comprehensive error handling"""
+    
+    # Handle CORS preflight requests
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         # Get client info
         ip_address = request.remote_addr or 'unknown'
@@ -551,9 +614,14 @@ def analyze_mystical_prompt():
             'fallback_available': True
         }), 500
 
-@app.route('/gb_gallery_api', methods=['GET'])
+@app.route('/gb_gallery_api', methods=['GET', 'OPTIONS'])
 def gallery_api():
     """Gallery API endpoint with proper pagination"""
+    
+    # Handle CORS preflight requests  
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         # Parse and validate parameters
         try:
@@ -625,9 +693,14 @@ def gallery_api():
         logger.error(f"Gallery API failed: {e}")
         return jsonify({'error': 'Failed to fetch gallery data'}), 500
 
-@app.route('/gb_admin_stats', methods=['GET'])
+@app.route('/gb_admin_stats', methods=['GET', 'OPTIONS'])
 def admin_stats():
     """Admin statistics endpoint"""
+    
+    # Handle CORS preflight requests
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
         db = get_db()
         
