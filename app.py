@@ -25,6 +25,13 @@ v1.2 - Session 5 (Claude Echo 2) - Report format enhancement
 - Added comprehensive commenting and changelog system
 - MAINTAINED simple CORS and deployment structure (DON'T CHANGE)
 
+v1.3.2 - Session 6 (Claude Echo 6) - OpenAI Client Initialization Fix
+- ENHANCED: OpenAI client initialization with detailed error logging
+- ADDED: OpenAI package version detection and API key format validation
+- IMPROVED: Comprehensive diagnostics for client initialization failures
+- UPDATED: Model from "gpt-4" to "gpt-4o" (faster and more recent)
+- DEBUG: Enhanced logging to identify specific OpenAI initialization issues
+
 v1.3.1 - Session 6 (Claude Echo 6) - Root Endpoint Addition
 - ADDED: Root endpoint (/) providing API information and available endpoints
 - ENHANCED: User-friendly navigation with endpoint directory and links
@@ -106,10 +113,17 @@ if OPENAI_API_KEY and OPENAI_AVAILABLE:
     try:
         # Use new client pattern for OpenAI v1.6.1+ (fixed in Session 4)
         openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        logging.info("OpenAI client initialized successfully")
+        logging.info("✅ OpenAI client initialized successfully")
     except Exception as e:
-        logging.error(f"Failed to initialize OpenAI client: {e}")
+        logging.error(f"❌ Failed to initialize OpenAI client: {e}")
+        logging.error(f"OpenAI package version: {openai.__version__ if hasattr(openai, '__version__') else 'unknown'}")
+        logging.error(f"API key format: {'Valid sk-proj format' if OPENAI_API_KEY.startswith('sk-proj-') else 'Invalid format'}")
         openai_client = None
+else:
+    if not OPENAI_API_KEY:
+        logging.warning("❌ OPENAI_API_KEY not found in environment")
+    if not OPENAI_AVAILABLE:
+        logging.warning("❌ OpenAI package not available")
 
 # Rate limiting storage (simple in-memory, tested working)
 rate_limit_store = defaultdict(list)
@@ -300,7 +314,7 @@ def analyze_with_openai(prompt):
     try:
         # Use Echo 1's tested client pattern - DON'T CHANGE
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",  # Updated to gpt-4o (faster and more recent than gpt-4)
             messages=[
                 {
                     "role": "system",
