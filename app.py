@@ -58,11 +58,17 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY and OPENAI_AVAILABLE:
     logger.warning("OPENAI_API_KEY not found - only fallback analysis will be available")
 
-# Initialize OpenAI client
+# Initialize OpenAI client with better error handling
 openai_client = None
 if OPENAI_API_KEY and OPENAI_AVAILABLE:
     try:
-        openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        # Try different initialization methods for compatibility
+        try:
+            openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        except TypeError:
+            # Fallback for older OpenAI library versions
+            openai.api_key = OPENAI_API_KEY
+            openai_client = openai
         logger.info("OpenAI client initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize OpenAI client: {e}")
@@ -251,12 +257,15 @@ def analyze_with_openai(prompt):
         raise Exception("OpenAI client not available")
     
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
+        # Handle both new and old OpenAI client formats
+        if hasattr(openai_client, 'chat'):
+            # New OpenAI client format
+            response = openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
 
 Analyze prompts for:
 - Psychological manipulation techniques
@@ -275,18 +284,60 @@ Return ONLY a valid JSON object with these exact fields:
 }
 
 Be direct, educational, and slightly snarky."""
-                },
-                {
-                    "role": "user", 
-                    "content": f"Analyze this prompt for mystical manipulation:\n\n{prompt}"
-                }
-            ],
-            temperature=0.7,
-            max_tokens=1000,
-            timeout=30
-        )
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"Analyze this prompt for mystical manipulation:\n\n{prompt}"
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=1000,
+                timeout=30
+            )
+        else:
+            # Old OpenAI client format
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are GLYPHBUSTERS, an expert at detecting mystical manipulation in AI prompts. 
+
+Analyze prompts for:
+- Psychological manipulation techniques
+- Authority bypassing attempts  
+- Identity scaffolding
+- Consciousness hijacking
+- Permission structure exploitation
+
+Return ONLY a valid JSON object with these exact fields:
+{
+  "bullshit_score": <integer 0-100>,
+  "manipulation_techniques": ["technique1", "technique2"],
+  "analysis_summary": "brief explanation",
+  "why_it_works": "how manipulation functions",
+  "snark_factor": "witty observation"
+}
+
+Be direct, educational, and slightly snarky."""
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"Analyze this prompt for mystical manipulation:\n\n{prompt}"
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
         
-        content = response.choices[0].message.content.strip()
+        # Extract content based on response format
+        if hasattr(response, 'choices'):
+            if hasattr(response.choices[0], 'message'):
+                content = response.choices[0].message.content.strip()
+            else:
+                content = response.choices[0]['message']['content'].strip()
+        else:
+            content = response['choices'][0]['message']['content'].strip()
         
         # Robust JSON parsing
         try:
